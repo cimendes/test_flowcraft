@@ -173,6 +173,9 @@ process report_corrupt_1_1 {
 SIDE_phred_1_1.set{ SIDE_phred_1_2 }
 
 
+SIDE_max_len_1_1.set{ SIDE_max_len_1_3 }
+
+
 // Check sliding window parameter
 if ( params.trimSlidingWindow_1_2.toString().split(":").size() != 2 ){
     exit 1, "'trimSlidingWindow_1_2' parameter must contain two values separated by a ':'. Provided value: '${params.trimSlidingWindow_1_2}'"
@@ -345,6 +348,68 @@ file ".versions"
 
 
 
+if ( !params.spadesMinCoverage_1_3.toString().isNumber() ){
+    exit 1, "'spadesMinCoverage_1_3' parameter must be a number. Provided value: '${params.spadesMinCoverage_1_3}'"
+}
+if ( !params.spadesMinKmerCoverage_1_3.toString().isNumber()){
+    exit 1, "'spadesMinKmerCoverage_1_3' parameter must be a number. Provided value: '${params.spadesMinKmerCoverage_1_3}'"
+}
+
+IN_spades_opts_1_3 = Channel.value(
+    [params.spadesMinCoverage_1_3,
+     params.spadesMinKmerCoverage_1_3
+     ])
+
+if ( params.spadesKmers_1_3.toString().split(" ").size() <= 1 ){
+    if (params.spadesKmers_1_3.toString() != 'auto'){
+        exit 1, "'spadesKmers_1_3' parameter must be a sequence of space separated numbers or 'auto'. Provided value: ${params.spadesKmers_1_3}"
+    }
+}
+IN_spades_kmers_1_3 = Channel.value(params.spadesKmers_1_3)
+
+clear = params.clearInput_1_3 ? "true" : "false"
+disable_rr = params.disableRR_1_3 ? "true" : "false"
+
+checkpointClear_1_3 = Channel.value(clear)
+disableRR_1_3 = Channel.value(disable_rr)
+
+process spades_1_3 {
+
+    // Send POST request to platform
+        if ( params.platformHTTP != null ) {
+        beforeScript "PATH=${workflow.projectDir}/bin:\$PATH; export PATH; set_dotfiles.sh; startup_POST.sh $params.projectId $params.pipelineId 1_3 $params.platformHTTP"
+        afterScript "final_POST.sh $params.projectId $params.pipelineId 1_3 $params.platformHTTP; report_POST.sh $params.projectId $params.pipelineId 1_3 $params.sampleName $params.reportHTTP $params.currentUserName $params.currentUserId spades_1_3 \"$params.platformSpecies\" true"
+    } else {
+        beforeScript "PATH=${workflow.projectDir}/bin:\$PATH; set_dotfiles.sh"
+        }
+
+    tag { sample_id }
+    publishDir 'results/assembly/spades_1_3/', pattern: '*_spades*.fasta', mode: 'copy'
+    publishDir "results/assembly/spades_1_3/$sample_id", pattern: "*.gfa", mode: "copy"
+    publishDir "results/assembly/spades_1_3/$sample_id", pattern: "*.fastg", mode: "copy"
+
+    input:
+    set sample_id, file(fastq_pair), max_len from fastqc_trimmomatic_out_1_0.join(SIDE_max_len_1_3)
+    val opts from IN_spades_opts_1_3
+    val kmers from IN_spades_kmers_1_3
+    val clear from checkpointClear_1_3
+    val disable_rr from disableRR_1_3
+
+    output:
+    set sample_id, file('*_spades*.fasta') into spades_out_1_1
+    file "*.fastg" optional true
+    file "*.gfa" into gfa1_1_3
+    set sample_id, val("1_3_spades"), file(".status"), file(".warning"), file(".fail"), file(".command.log") into STATUS_spades_1_3
+set sample_id, val("spades_1_3"), val("1_3"), file(".report.json"), file(".versions"), file(".command.trace") into REPORT_spades_1_3
+file ".versions"
+
+    script:
+    template "spades.py"
+
+}
+
+
+
 
 /** STATUS
 Reports the status of a sample in any given process.
@@ -355,7 +420,7 @@ process status {
     publishDir "pipeline_status/$task_name"
 
     input:
-    set sample_id, task_name, status, warning, fail, file(log) from STATUS_integrity_coverage_1_1.mix(STATUS_fastqc_1_2,STATUS_fastqc_report_1_2,STATUS_trimmomatic_1_2)
+    set sample_id, task_name, status, warning, fail, file(log) from STATUS_integrity_coverage_1_1.mix(STATUS_fastqc_1_2,STATUS_fastqc_report_1_2,STATUS_trimmomatic_1_2,STATUS_spades_1_3)
 
     output:
     file '*.status' into master_status
@@ -424,7 +489,7 @@ process report {
             pid,
             report_json,
             version_json,
-            trace from REPORT_integrity_coverage_1_1.mix(REPORT_fastqc_1_2,REPORT_fastqc_report_1_2,REPORT_trimmomatic_1_2)
+            trace from REPORT_integrity_coverage_1_1.mix(REPORT_fastqc_1_2,REPORT_fastqc_report_1_2,REPORT_trimmomatic_1_2,REPORT_spades_1_3)
 
     output:
     file "*" optional true into master_report
@@ -436,55 +501,39 @@ process report {
 }
 
 File forkTree = new File("${workflow.projectDir}/.forkTree.json");
-    File treeDag = new File("${workflow.projectDir}/.treeDag.json");
-    File js = new File("${workflow.projectDir}/resources/main.js.zip")
-    if (forkTree.exists() && treeDag.exists() && js.exists()) {
+File treeDag = new File("${workflow.projectDir}/.treeDag.json");
+File js = new File("${workflow.projectDir}/resources/main.js.zip");
 
-       process compile_reports {
 
-        publishDir "pipeline_report/", mode: "copy"
+process compile_reports {
 
-        if ( params.reportHTTP != null ){
-            beforeScript "PATH=${workflow.projectDir}/bin:\$PATH; export PATH;"
-            afterScript "metadata_POST.sh $params.projectId $params.pipelineId 0 $params.sampleName $params.reportHTTP $params.currentUserName $params.currentUserId 0 \"$params.platformSpecies\""
-        }
+    publishDir "pipeline_report/", mode: "copy"
 
+    if ( params.reportHTTP != null ){
+        beforeScript "PATH=${workflow.projectDir}/bin:\$PATH; export PATH;"
+        afterScript "metadata_POST.sh $params.projectId $params.pipelineId 0 $params.sampleName $params.reportHTTP $params.currentUserName $params.currentUserId 0 \"$params.platformSpecies\""
+    }
+
+   if (forkTree.exists() && treeDag.exists() && js.exists()) {
        input:
        file report from master_report.collect()
        file forks from Channel.fromPath("${workflow.projectDir}/.forkTree.json")
        file dag from Channel.fromPath("${workflow.projectDir}/.treeDag.json")
        file js from Channel.fromPath("${workflow.projectDir}/resources/main.js.zip")
-
-        output:
-        file "pipeline_report.json"
-        file "pipeline_report.html"
-        file "src/main.js"
-
-        script:
-        template "compile_reports.py"
-    }
-    } else {
-        process compile_reports {
-
-        publishDir "pipeline_report/", mode: "copy"
-
-        if ( params.reportHTTP != null ){
-            beforeScript "PATH=${workflow.projectDir}/bin:\$PATH; export PATH;"
-            afterScript "metadata_POST.sh $params.projectId $params.pipelineId 0 $params.sampleName $params.reportHTTP $params.currentUserName $params.currentUserId 0 \"$params.platformSpecies\""
-        }
-
+   } else {
         input:
         file report from master_report.collect()
-        
-        output:
-        file "pipeline_report.json"
-        file "pipeline_report.html"
-        file "src/main.js"
+   }
 
-        script:
-        template "compile_reports.py"
-    }
-    }
+    output:
+    file "pipeline_report.json"
+    file "pipeline_report.html"
+    file "src/main.js"
+
+    script:
+    template "compile_reports.py"
+}
+
 
 
 
