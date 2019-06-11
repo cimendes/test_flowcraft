@@ -69,14 +69,6 @@ class Help {
         println "       --trimTrailing_1_2          Cut bases of the end of a read, if below a threshold quality. (default: 3)"
         println "       --trimMinLength_1_2         Drop the read if it is below a specified length. (default: 55)"
         println "       --clearInput_1_2            Permanently removes temporary input files. This option is only useful to remove temporary files in large workflows and prevents nextflow's resume functionality. Use with caution. (default: false)"
-        println "       "
-        println "       Component 'SPADES_1_3'"
-        println "       ----------------------"
-        println "       --spadesMinCoverage_1_3     The minimum number of reads to consider an edge in the de Bruijn graph during the assembly (default: 2)"
-        println "       --spadesMinKmerCoverage_1_3 Minimum contigs K-mer coverage. After assembly only keep contigs with reported k-mer coverage equal or above this value (default: 2)"
-        println "       --spadesKmers_1_3           If 'auto' the SPAdes k-mer lengths will be determined from the maximum read length of each assembly. If 'default', SPAdes will use the default k-mer lengths.  (default: 'auto')"
-        println "       --clearInput_1_3            Permanently removes temporary input files. This option is only useful to remove temporary files in large workflows and prevents nextflow's resume functionality. Use with caution. (default: false)"
-        println "       --disableRR_1_3             disables repeat resolution stage of assembling. (default: false)"
         
     }
 
